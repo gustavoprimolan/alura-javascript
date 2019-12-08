@@ -2,7 +2,7 @@
 
 * Atualmente, o arquivo ListaNegociacoes.js está assim:
 
-´´´js
+```js
 class ListaNegociacoes {
 
     constructor() {
@@ -20,20 +20,20 @@ class ListaNegociacoes {
         return [].concat(this._negociacoes);
     }
 }
-´´´
+```
 
 * Adicionaremos o método esvazia() abaixo da linha do return():
 
-´´´js
+```js
 esvazia()   {
 
     this._negociacoes = [];
 }
-´´´
+```
 
 * O array de negociações receberá uma nova lista e com isso, apagará todos os itens da anterior. Ao clicarmos no botão "Apagar" do formulário, queremos que as informações sejam apagadas da lista de negociações. Para isto, sabemos que quem atua no modelo é a controller mediante às ações do usuário. Em seguida, no arquivo NegociacaoController.js, adicionaremos o método apaga():
 
-´´´js
+```js
 apaga() {
 
     this._listaNegociacoes.esvazia();
@@ -42,13 +42,13 @@ apaga() {
     this._mensagem.texto = 'Negociações apagadas com sucesso';
     this._mensagemView.update(this._mensagem);
 }
-´´´
+```
 
 * O método solicitará o modelo _listaNegociacoes.esvazia(). Observe que adicionamos o update(). Quando atualizarmos a View, esta será recarregada automaticamente e a tabela ficará limpa.
 
 * Temos que associar a página a partir do evento de clique, e chamar o apaga(). Para isto, no index.html, adicionaremos o onclick() dentro da tag 
 
-´´´html
+```html
 <button> de "Apagar":
 
 <div class="text-center">
@@ -59,7 +59,7 @@ apaga() {
             Apagar
         </button>
     </div>
-´´´
+```
 
 * Se recarregarmos a página no navegador, nenhum problema será apontado no console e conseguiremos cadastrar uma negociação normalmente. Quando clicarmos em "Apagar", a tabela ficará vazia. A View foi atualizada com os dados do modelo da lista de negociações atualizada e a mensagem foi exibida.
 
