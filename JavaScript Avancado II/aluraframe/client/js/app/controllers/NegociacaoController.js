@@ -7,10 +7,17 @@ class NegociacaoController {
         this._inputQuantidade = $('#quantidade');
         this._inputValor = $('#valor');
 
-        this._listaNegociacoes = new ListaNegociacoes(function (model) {
-            this._negociacoesView.update(model);
-        });
-        
+        //IMPLENETAÇÃO COM O CONTEXTO
+        // this._listaNegociacoes = new ListaNegociacoes(this, function (model) {
+        //     this._negociacoesView.update(model);
+        // });
+        //ARROW FUNCTION NÃO É SÓ UMA MANEIRA SUCINTA PARA ESCREVER UMA FUNÇÃO
+        //O ESCOPO DO ARROW FUNCTION É LÉXICO, OU SEJA, ELE NÃO MUDA DE ACORDO COM O CONTEXTO
+        //NO MOMENTO QUE EU PASSO O this PARA O ARROW FUNCION É O NegociacaoCOntroller E NÃO DE ListaNegociacoes
+        //COMO ESTAVA ACONTECENDO COM A FUNCTION
+        this._listaNegociacoes = new ListaNegociacoes((model) => this._negociacoesView.update(model));
+
+
         this._negociacoesView = new NegociacoesView($('#negociacoesView'));
 
         this._mensagem = new Mensagem();

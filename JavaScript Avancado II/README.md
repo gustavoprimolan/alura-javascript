@@ -233,3 +233,196 @@ this._listaNegociacoes = new ListaNegociacoes(function(model) {
 * ListaNegociacoes, uncaught type error: cannot read property 'update' of undefined
 
 * Ele mostra que this é o ListaNegociacoes. É assim, porque a função está sendo executada no contexto de _listaNegociacoes. Tem como fazer com o contexto de this seja o NegociacaoController? É o que veremos mais adiante.
+
+
+<h2>API Reflection e as facetas de this</h2>
+
+
+* Temos uma função com o escopo dinâmico:
+
+```js
+class NegociacaoController {
+
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._listaNegociacoes = new ListaNegociacoes(function(model) {
+            this._negociacoesView.update(model);
+        });
+//...
+```
+
+* O this irá variar de acordo com o contexto da execução. Como a função será chamada dentro da classe ListaNegociacoes, ele será usado como contexto do this da função.
+
+```js
+this._listaNegociacoes = new ListaNegociacoes(function(model) {
+    this._negociacoesView.update(model);
+});
+```
+
+* Mas para que o código funcione, queremos que o this tenha como contexto o NegociacaoController. Da mesma maneira que o this é dinâmico, nós programaticamente podemos modificá-lo. Como faremos isso? Primeiramente, no construtor de _listaNegociacoes, adicionaremos o primeiro parâmetro: this - referente ao NegociacaoController.
+
+```js
+class NegociacaoController {
+
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._listaNegociacoes = new ListaNegociacoes(this, function(model) {
+            this._negociacoesView.update(model);
+        });
+```
+
+* Este que será recebido depois em ListaNegociacoes.js, como contexto:
+
+```js
+class ListaNegociacoes {
+
+  constructor(contexto, armadilha) {
+
+        this._negociacoes = [];
+        this._armadilha = armadilha;
+        this._contexto = contexto;
+  }
+//...
+```
+
+* Observe que criamos o atributo _contexto.
+
+* Agora o construtor do model recebe o contexto, no qual queremos que ele execute uma função. Mas para que o this seja realmente o NegociacaoController, teremos que mudar a maneira de chamar a função utilizada. Pediremos uma ajuda para a API de Reflexão do JavaScript, adicionando em ListaNegociacoes.js o Reflect.apply. Com isto, chamaremos o método estático da classe:
+
+```js
+adiciona(negociacao) {
+    this._negociacoes.push(negociacao);
+    //this._armadilha(this);
+    Reflect.apply(this._armadilha, this._contexto, [this]);
+}
+
+get negociacoes() {
+    return [].concat(this._negociacoes);
+}
+
+esvazia() {
+    this._negociacoes = [];
+    //this._armadilha(this);
+    Reflect.apply(this._armadilha, this._contexto, [this]);
+}
+```
+
+* Observe que fizemos algumas alterações nos métodos adiciona() e esvazia(). O Reflect.apply recebeu o this._armadilha como primeiro parâmetro e o segundo é this._contexto. O terceiro parâmetro é o [this], que será a própria ListaNegociacoes. Depois, adicionamos o Reflect.apply() também no esvazia().
+
+* Se executarmos o código, o formulário continua funcionando normalmente.
+
+* formulario funcionado
+
+* Nós conseguimos redefinir o contexto em que queremos executar a função de _listaNegociacoes, utilizando o Reflect.apply(). O método apply() recebeu a função executada, depois o contexto e os parâmetros que serão passados para a função. Fizemos isto com o adiciona() e o esvazia().
+
+```js
+adiciona(negociacao) {
+    this._negociacoes.push(negociacao);
+    //this._armadilha(this);
+    Reflect.apply(this._armadilha, this._contexto, [this]);
+}
+```
+
+* A função espera receber um modelo no NegociacaoController, dentro do constructor:
+
+```js
+this._listaNegociacoes = new ListaNegociacoes(this, function(model) {
+    this._negociacoesView.update(model);
+});
+```
+
+* No método adiciona(), passaremos o [this] que será o ListaNegociacoes. O nosso código está funcionando corretamente, mas será que existe outra maneira de conseguirmos o mesmo efeito, sem ter que passar o contexto para o model? Veremos mais adiante.
+
+<h2>Arrow function e seu escopo léxico</h2>
+
+* Nós queremos que function() execute, mas que this seja o NegociacaoController sem precisarmos passar um contexto:
+
+```js
+class NegociacaoController {
+
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._listaNegociacoes = new ListaNegociacoes(this, function(model) {
+            this._negociacoesView.update(model);
+        });
+//...
+
+```
+
+* Começaremos removendo o this da função:
+
+```js
+this._listaNegociacoes = new ListaNegociacoes(function(model) {
+    this._negociacoesView.update(model);
+});
+```
+
+* Vamos retirar também o contexto de ListaNegociacoes:
+
+```js
+class ListaNegociacoes {
+
+  constructor(armadilha) {
+
+        this._negociacoes = [];
+        this._armadilha = armadilha;
+  }
+  adiciona(negociacao) {
+      this._negociacoes.push(negociacao);
+      this._armadilha(this);
+  }
+
+  get negociacoes() {
+      return [].concat(this._negociacoes);
+  }
+
+  esvazia() {
+      this._negociacoes = [];
+      this._armadilha(this);
+  }
+
+//...
+```
+
+* Retiramos o Reflect.apply() e deixamos o código como estava anteriormente. Agora será preciso encontrar um forma para que quando o _armadilha(this) seja executado o contexto seja NegociacaoController.
+
+* Primeiramente, faremos um pequeno ajuste no NegociacaoController, ao adicionarmos uma arrow function, usando =>:
+
+```js
+class NegociacaoController {
+
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._listaNegociacoes = new ListaNegociacoes(model =>
+            this._negociacoesView.update(model));
+    }
+}
+```
+
+* Porém, se executarmos o código, seremos surpreendidos com o formulário funcionando corretamente. Como isso é possível? Isto ocorre porque a arrow function não é apenas uma maneira sucinta de escrever uma função, ela também tem um característica peculiar: o escopo de this é léxico, em vez de ser dinâmico como a outra função. Isto significa que o this não mudará de acordo com o contexto. Da maneira como estruturamos o código, o this será NegociacaoController - esta condição será mantida independente do local em que chamemos a arrow function, porque ela está amarrada a um escopo imutável.
+
+* Então, o this de uma arrow function é léxico, enquanto o this de uma função padrão é dinâmico. Com esse ajuste, conseguimos deixar o nosso código mais sucinto.
+
+
+<h1>Aula 02 - Existe modelo mentiroso? O padrão de projeto Proxy!</h1>
+

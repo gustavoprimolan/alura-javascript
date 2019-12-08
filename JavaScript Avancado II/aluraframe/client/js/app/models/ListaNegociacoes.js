@@ -9,6 +9,12 @@ class ListaNegociacoes {
     adiciona(negociacao) {
         this._negociacoes.push(negociacao);
         this._armadilha(this);
+        //API DE RELFEXÃO DO JAVASCRIPT
+        //PRIMEIRO PARAMETRO É O METODO QUE EU QUERO CHAMAR
+        //SEGUNDO É O CONTEXTO
+        //QUAIS PARAMETROS ATRAVÉS DE UM ARRAY A FUNÇÃO VAI RECEBER
+        // Reflect.apply(this._armadilha, this._contexto, []);
+
     }
     
     get negociacoes() {
@@ -17,7 +23,8 @@ class ListaNegociacoes {
 
     esvazia() {
         this._negociacoes = [];
-        this._armadilha(this);
+        this._armadilha(this); // NÃO FUNCIONA SEM ARROW FUNCTION
+        // Reflect.apply(this._armadilha, this._contexto, []);
     }
 
 }
