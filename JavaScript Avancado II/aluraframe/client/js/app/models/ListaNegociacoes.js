@@ -1,14 +1,17 @@
 class ListaNegociacoes {
     
+    // constructor(armadilha) {
     constructor(armadilha) {
-        
         this._negociacoes = [];
-        this._armadilha = armadilha;
+
+        //NÃO É UMA BOA PRÁTICA DEIXAR REGRAS DE INFRAESTRUTURA NOS MEUS MODELOS
+        // this._armadilha = armadilha;
+
     }
     
     adiciona(negociacao) {
         this._negociacoes.push(negociacao);
-        this._armadilha(this);
+        // this._armadilha(this);
         //API DE RELFEXÃO DO JAVASCRIPT
         //PRIMEIRO PARAMETRO É O METODO QUE EU QUERO CHAMAR
         //SEGUNDO É O CONTEXTO
@@ -23,7 +26,7 @@ class ListaNegociacoes {
 
     esvazia() {
         this._negociacoes = [];
-        this._armadilha(this); // NÃO FUNCIONA SEM ARROW FUNCTION
+        // this._armadilha(this); // NÃO FUNCIONA SEM ARROW FUNCTION
         // Reflect.apply(this._armadilha, this._contexto, []);
     }
 

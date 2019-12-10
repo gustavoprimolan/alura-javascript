@@ -15,7 +15,26 @@ class NegociacaoController {
         //O ESCOPO DO ARROW FUNCTION É LÉXICO, OU SEJA, ELE NÃO MUDA DE ACORDO COM O CONTEXTO
         //NO MOMENTO QUE EU PASSO O this PARA O ARROW FUNCION É O NegociacaoCOntroller E NÃO DE ListaNegociacoes
         //COMO ESTAVA ACONTECENDO COM A FUNCTION
-        this._listaNegociacoes = new ListaNegociacoes((model) => this._negociacoesView.update(model));
+        // this._listaNegociacoes = new ListaNegociacoes((model) => this._negociacoesView.update(model));
+
+
+        let self = this;
+
+        this._listaNegociacoes = new Proxy(new ListaNegociacoes(), {
+
+            get(target, prop, receiver) {
+
+                if(['adiciona', 'esvazia'].includes(prop) && typeof(target[prop]) == typeof(Function)){
+
+                    return function() {
+
+                        Reflect.apply(target[prop], target, arguments);
+                        self._negociacoesView.update(target);
+                    }
+                }
+                return Reflect.get(target, prop, receiver);
+            }
+        });
 
 
         this._negociacoesView = new NegociacoesView($('#negociacoesView'));
