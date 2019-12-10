@@ -1100,3 +1100,5 @@ this._listaNegociacoes = new Proxy(new ListaNegociacoes(), {
 * Então, o código está funcionando. Nós tivemos que aprender a lidar com as particularidades do Proxy, e assim, não "sujamos" o nosso modelo. Mais adiante veremos como esconder a complexidade de criação do Proxy. O nosso código ficou muito verboso. Inclusive, não vamos inserir um Proxy para MensagemView, mas seria um erro repetir todo este código novamente.
 
 * Por enquanto, só brincaremos com o listaNegociacoes. A seguir, vamos aplicar um outro padrão de projeto que nos ajudará bastante na criação de um Proxy. Mas a forma de se trabalhar internamente já foi apresentada.
+
+<h2>E se alguém criasse nossos proxies? O Padrão de Projeto Factory</h2>
