@@ -1,7 +1,7 @@
 class ListaNegociacoes {
     
     // constructor(armadilha) {
-    constructor(armadilha) {
+    constructor() {
         this._negociacoes = [];
 
         //NÃO É UMA BOA PRÁTICA DEIXAR REGRAS DE INFRAESTRUTURA NOS MEUS MODELOS

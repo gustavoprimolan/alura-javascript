@@ -1101,4 +1101,465 @@ this._listaNegociacoes = new Proxy(new ListaNegociacoes(), {
 
 * Por enquanto, só brincaremos com o listaNegociacoes. A seguir, vamos aplicar um outro padrão de projeto que nos ajudará bastante na criação de um Proxy. Mas a forma de se trabalhar internamente já foi apresentada.
 
-<h2>E se alguém criasse nossos proxies? O Padrão de Projeto Factory</h2>
+<h1>Aula 03 - E se alguém criasse nossos proxies? O Padrão de Projeto Factory</h1>
+
+<h2>O Padrão de Projeto Factory</h2>
+
+* Vamos voltar a trabalhar com a Proxy. Esta é uma solução interessante que não polui o modelo original, com o código para atualizar a View. Mas criamos uma forma bastante verbosa... Estamos trabalhando com dez propriedades da Controller com as quais queremos criar uma Proxy. Podemos criar um padrão de projeto chamado Factory que consiste em uma classe ser especializada em criar determinado tipo de objeto. Em seguida, vamos gerar o arquivo ProxyFactory.js, que ficará dentro da pasta services:
+
+```js
+class ProxyFactory {
+
+  static createProxy(objeto, props, acao) {
+  }
+}
+```
+
+* Não é uma regra em si, mas podemos invocar um método estático da classe para não ter que instanciá-la. Depois, moveremos de NegociacaoController, o trecho referente ao Proxy, para a nova classe criada:
+
+```js
+class ProxyFactory {
+
+    static create(objeto, props, acao) {
+
+        return new Proxy(objeto, {
+
+            get(target, prop, receiver) {
+
+                if(props.includes(prop) && typeof(target[prop]) == typeof(Function)) {
+                    return function() {
+
+                        console.log(`a propriedade "${prop}" foi interceptada`);
+                        Reflect.apply(target[prop], target, arguments);
+                        return acao(target);
+                    }
+                }
+                return Reflect.get(target, prop, receiver);       
+            }
+        })
+    }
+}
+```
+
+* Dentro de props, temos um array no qual está a propriedade que queremos verificar. A acao() nos devolverá um valor. O próximo passo será importar o ProxyFactory no index.html.
+
+```html
+    <script src="js/app/models/Negociacao.js"></script>
+    <script src="js/app/models/ListaNegociacoes.js"></script>
+    <script src="js/app/models/Mensagem.js"></script>
+    <script src="js/app/controllers/NegociacaoController.js"></script>
+    <script src="js/app/helpers/DateHelper.js"></script>
+    <script src="js/app/views/View.js"></script>
+    <script src="js/app/views/NegociacoesView.js"></script>
+    <script src="js/app/views/MensagemView.js"></script>
+    <script src="js/app/services/ProxyFactory.js"></script>
+    <script>
+        let negociacaoController = new NegociacaoController();          
+    </script>
+```
+
+* Agora, não precisaremos mais do código do Proxy no NegociacaoController.js. No lugar, vamos adicionar uma _listaNegociacoes com o ProxyFactory:
+
+```js
+this._listaNegociacoes = ProxyFactory.create (
+    new ListaNegociacoes(),
+    ['adiciona', 'esvazia'], model =>
+        this._negociacoesView.update(model));
+
+this._negociacoesView = new NegociacoesView($('#negociacoesView'));
+this._negociacoesView.update(this._listaNegociacoes);
+```
+
+* Dentro do ProxyFactory.create(), incluímos um array com as propriedades com adiciona e esvazia. Já não será necessário usar a variável self e, como a arrow function tem escopo léxico, ela entenderá que o this é referente a controller. Se testarmos no navegador, veremos que conseguimos preencher o formulário corretamente.
+
+* Nós já melhoramos a manutenção e a legibilidade do código. Aproveitaremos para fazer o mesmo com o Mensagem.
+
+```js
+this._mensagem = ProxyFactory.create(
+    new Mensagem(), ['texto'], model =>
+        this._mensagemView.update(model));
+this._mensagemView = new MensagemView($('#mensagemView'));  
+```
+
+* No entanto, ainda teremos que chamar manualmente a View, usando o update() e chamando this._mensagem. Sempre que criamos o modelo autoatualizável, a View só será recarregada, quando o modelo for modificado. Mas vamos resolver isso.
+
+* Iremos para o método adiciona(), removeremos o update().
+
+```js
+adiciona(event) {
+
+    event.preventDefault();
+    this._listaNegociacoes.adiciona(this._criaNegociacao());
+    this._mensagem.texto = 'Negociação adicionada com sucesso';
+    this._limpaFormulario();
+}
+```
+
+* Faremos ajustes em apaga():
+
+```js
+apaga(){
+
+    this._listaNegociacoes.esvazia();
+    this._mensagem.texto = 'Negociações apagadas com sucesso';
+
+}
+```
+
+* Se recarregarmos a página no navegador, veremos que o formulário funciona corretamente, mas não atualizou a mensagem.
+
+<h2>Nosso proxy não está 100%!</h2>
+
+* O que está acontecendo? O ProxyFactory está preparado para interceptar métodos, mas não está preparado para interceptar propriedades, como em Mensagem.js:
+
+
+```js
+class Mensagem {
+
+    constructor(texto='') {
+
+        this._texto = texto;
+    }
+
+    get texto() {
+
+      return this._texto;
+    }
+
+    set texto(texto) {
+
+        this._texto = texto;
+    }
+}
+```
+
+* O get texto() é um getter. O ProxyFactory não entende que precisa interceptar com o get. Já que os getters e setters são acessados como propriedades, temos também que colocar no ProxyFactory.js, um código para lidarmos com as propriedades. Para isto, adicionaremos um set, logo abaixo do último return:
+
+```js
+set(target, prop, value, receiver) {
+
+    Reflect.set(target, prop, value, receiver);
+    acao(target);
+}
+```
+
+* Depois, usaremos o Reflect.set(), recebendo os quatro parâmetros. Logo após, chamaremos o acao(target). Assim, garantiremos que quando for executada a propriedade, depois, será a vez do interceptador.
+
+* Mas se preenchermos o formulário no navegador, veremos que ele não ficará limpo, e aparecerá uma mensagem de erro que dará 'set' on proxy. Isto ocorreu porque quando chamamos um Reflect.set() temos que chamar também um return. Também será necessário adicionar o if:
+
+```js
+set(target, prop, value, receiver) {
+    if(props.includes(prop)) {
+        target[prop] = value;
+        acao(target);
+    }
+
+    return Reflect.set(target, prop, value, receiver);
+}
+```
+
+* Aplicamos os filtros nas propriedades que queremos. Podemos melhorar o nosso código... Começando pelo fato que não queremos retornar fixo o ListaNegociacoes() - nós queremos levar em consideração o objeto que estamos usando como parâmetro. Faremos um segundo ajuste: o código do typeof() quer identificar se estamos trabalhando com uma função. Para ficar mais específico, criaremos o método static _ehFuncao(), em seguida, substituiremos o typeof por ele:
+
+```js
+static _ehFuncao(func) {
+
+    return typeof(func) == typeof(Function);
+
+}
+```
+
+* Depois, substituiremos o typeof localizado no if do get, por _ehFuncao.
+
+```js
+class ProxyFactory{
+
+    static create(objeto, props, acao) {
+
+        return new Proxy(objeto, {
+
+            get(target, prop, receiver) {
+
+                if(props.includes(prop) && ProxyFactory._ehFuncao(target[prop])) {
+
+                    return function() {
+
+                        console.log(`a propriedade "${prop}" foi interceptada`);
+                        Reflect.apply(target[prop], target, arguments);
+                        return acao(target);
+                    };
+                }
+                return Reflect.get(target, prop, receiver);       
+           },
+
+            set(target, prop, value, receiver) {
+                if(props.includes(prop)) {
+                    target[prop] = value;
+                    acao(target);
+                }
+                return Reflect.set(target, prop, value, receiver);
+            }
+      });
+    }
+}
+```
+
+* Atenção: como estamos trabalhando com um método estático, não se esqueça de adicionar o nome da classe ProxyFactory antes do _ehFuncao(), no if.
+
+* Vamos recarregar a página no navegador e preencher os campos do formulário. Tudo estará funcionando no nosso sistema.
+
+<h2>Isolando a complexidade de associar o modelo com a view na classe Bind</h2>
+
+* Aplicamos vários conceitos de boas práticas e refatoramos o nosso código... No entanto, quando criamos um Proxy da _listaNegociacoes e _mensagem, nosso objetivo é realizar um Data binding (que traduzido para o português, significa "ligação de dados"). Nós queremos fazer uma associação entre o modelo e a View, ou seja, sempre que alterarmos o modelo, queremos disparar a atualização da View. Damos o nome disso de Data binding unidirecional.
+
+* Mesmo criando o Proxy, ainda precisaremos chamar o update() para fazer a primeira renderização.
+
+```js
+class NegociacaoController {
+
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._listaNegociacoes = ProxyFactory.create(
+            new ListaNegociacoes(),
+            ['adiciona', 'esvazia'], model =>
+                this._negociacoesView.update(model));
+
+        this._negocicoesView = new NegociacoesView($('#negociacoesView'));
+        this._negociacoesView.update(this._listaNegociacoes);
+
+        this._mensagem = ProxyFactory.create(
+            new Mensagem(), ['texto'], model =>
+                this._mensagemView.update(model));
+
+        this._mensagemView = new MensagemView($('#mensagemView'));
+        this._mensagemView.update(this._mensagem);
+    }
+//...
+```
+
+* Mas queremos nos livrar do update() do constructor - ele deve continuar sendo realizado na estratégia de atualização que passamos do model com a view. Com as alterações o código ficou assim:
+
+```js
+class NegociacaoController {
+
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._listaNegociacoes = ProxyFactory.create(
+            new ListaNegociacoes(),
+            ['adiciona', 'esvazia'], model =>
+                this._negociacoesView.update(model));
+
+        this._negocicoesView = new NegociacoesView($('#negociacoesView'));
+
+
+        this._mensagem = ProxyFactory.create(
+            new Mensagem(), ['texto'], model =>
+                this._mensagemView.update(model));
+
+        this._mensagemView = new MensagemView($('#mensagemView'));
+    }
+//...
+```
+
+* Mas se recarregarmos a página do formulário, a tabela abaixo já não será visualizada inicialmente. Só será vista, ao preenchermos os dados. O que acha de explicitarmos o trecho referente ao Data binding? Na pasta helpers, adicione um novo arquivo: Bind.js.
+
+* Em NegociacaoController, vamos esconder o ProxyFactory:
+```js
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._negociacoesView = new NegociacoesView($('#negociacoesView'));
+
+        this._listaNegociacoes = new Bind (
+                new ListaNegociacoes(),
+                this._negociacoesView,
+                ['adiciona', 'esvazia']);
+
+
+        this._mensagemView = new MensagemView($('#mensagemView'));
+        this._mensagem = new Bind(
+            new Mensagem(),
+            this._mensagemView,
+            ['texto']);
+    }
+```
+
+* Queremos criar um new Bind da ListaNegociacoes() com a View - que só será atualizada quando os métodos adiciona e esvazia forem atualizadas. Não estamos mais fazendo o View.update() no _mensagem também. Observe que removemos a parte do ProxyFactory. Mas new Bind retornará uma instância da classe Bind e nós queremos que ele nos dê o Proxy configurado. Em seguida, começaremos a trabalhar com a classe Bind:
+
+```js
+class Bind {
+
+    constructor(model, view, props) {
+
+       let proxy = ProxyFactory.create(model, props, model => {
+           view.update(model)
+       });
+
+       view.update(model);
+       return proxy;
+    }
+}
+```
+
+* Na classe Bind, receberemos o constructor(), receberemos o model, a view e a props. Depois, criaremos uma Proxy, que chamará o ProxyFactory. Praticamente, reaproveitaremos o código que removemos anteriormente.
+
+* Estamos renderizando pela primeira vez. A grande novidade do JS é que um construtor pode dar um retorno - não apenas uma instância de sua classe. Em linguagens como Java e C#, o construtor não pode dar um retorno. A seguir, vamos importar o Bind no index.html.
+
+```html
+<script src="js/app/models/Negociacao.js"></script>
+<script src="js/app/models/ListaNegociacoes.js"></script>
+<script src="js/app/models/Mensagem.js"></script>
+<script src="js/app/controllers/NegociacaoController.js"></script>
+<script src="js/app/helpers/DateHelper.js"></script>
+<script src="js/app/views/View.js"></script>
+<script src="js/app/views/NegociacoesView.js"></script>
+<script src="js/app/views/MensagemView.js"></script>
+<script src="js/app/services/ProxyFactory.js"></script>
+<script src="js/app/helpers/Bind.js"></script>
+<script>
+    let negociacaoController = new NegociacaoController();          
+</script>
+```
+
+* Se preenchermos os campos do formulário, conseguiremos incluir os dados normalmente. Nós conseguimos reduzir as responsabilidades do desenvolvedor ao criarmos a classe Bind, esclarecendo que queremos fazer a associação entre dado e View, e que ela será feita quando as propriedades especificadas forem acessadas. E usamos internamente o ProxyFactory no Bind, para criarmos a Proxy. Em seguida, view.update() foi chamado - lembrando que, no fim, retornaremos uma instância diferente do Bind.
+
+* Nós criamos ainda um mecanismo de data binding, semelhante aos frameworks como AngularJS e AureliaJS - ainda que estes usem recursos mais sofisticados. Durante a nossa jornada para resolver todos os problemas encontrados até aqui, nós conhecemos vários padrões de projetos e muitos recursos da linguagem JavaScript.
+
+<h2> Parâmetros REST</h2>
+
+* Nós queremos simplificar ainda mais o nosso código. Nós estamos passando as propriedades adiciona, esvazia e texto dentro de um array:
+
+```js
+class NegociacaoController {
+
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._negociacoesView = new NegociacoesView($('#negociacoesView'));
+
+        this._listaNegociacoes = new Bind (
+                new ListaNegociacoes(),
+                this._negociacoesView($('#negociacoesView')),
+                ['adiciona', 'esvazia']);
+
+
+        this._mensagemView = new MensagemView($('#mensagemView')),
+        this._mensagem = new Bind(
+            new Mensagem(),
+            this._mensagemView,
+            ['texto']);
+    }
+//...
+```
+
+* Vamos retirar as propriedades do array.
+
+```js
+this._listaNegociacoes = new Bind (
+        new ListaNegociacoes(),
+        this._negociacoesView($('#negociacoesView')),
+        'adiciona', 'esvazia');
+```
+
+* Mas, então, teremos uma ListaNegociacoes com uma View e dois parâmetros? Na classe Bind, veremos que são aceitos apenas três parâmetros.
+
+```js
+class Bind {
+
+    constructor(model, view, props) {
+
+        let proxy = ProxyFactory.create(model, props, model =>
+            view.update(model));
+
+        view.update(model);
+
+        return proxy;
+    }
+}
+```
+
+* No entanto, a ProxyFactory precisa receber um array, por isso, as propriedades eram passadas entre [] (colchetes). Contudo, quando o último parâmetro de um construtor, função ou método é variável, podemos usar o parâmetro REST operator (...):
+
+```js
+constructor(model, view, ...props) {
+
+   let proxy = ProxyFactory.create(model, props, model => {
+       view.update(model)
+   });
+
+   view.update(model);
+   return proxy;
+}
+```
+
+* Vamos entender o que será feito, relembrando o Bind do NegociacaoController.js:
+
+* O primeiro parâmetro recebido pelo Bind é o model, o segundo é a view, e a partir do terceiro, eles caem dentro do ...props - podendo ser diversos, como um array. No nosso caso, ...props é um array com duas posições (adiciona e esvazia). É isso que o create() do ProxyFactory espera receber. Com a pequena adição do REST. Isto também nos permite fazer uma associação com apenas um parâmetro, como no caso do texto de _mensagem, sem colocá-lo em um array.
+* O rest operator (...) não deve ser adicionado no primeiro parâmetro, porque isso traria problemas para os seguintes. Por exemplo, se fizéssemos ...model:
+
+* constructor (...model, view, ...props){ }
+
+* Para gerarmos um array com n parâmetros, devemos usar o REST apenas no último, outro vantajoso recurso do ECMAScript.
+
+* Tem mais uma melhoria que podemos fazer no código... No início da aplicação, criamos uma instância de NegociacoesView, que era guardada na propriedade do _negociacoesView:
+
+```js
+class NegociacaoController {
+
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._negociacoesView = new NegociacoesView($('#negociacoesView'));
+//...
+```
+
+* Também criamos o MensagemView() e guardamos na propriedade da controller. Mas se observarmos o código, veremos que não utilizamos a View novamente em NegociacoesController. Quem manipulará a View será a nossa associação, que mediante a atualização do modelo, recarregará a View. Então, não precisamos ter as propriedades this._negociacoesView e this._mensagemView, afinal, elas não são utilizadas. Passaremos as instâncias da View de forma mais direta:
+
+```js
+class NegociacaoController {
+
+    constructor() {
+
+        let $ = document.querySelector.bind(document);
+        this._inputData = $('#data');
+        this._inputQuantidade = $('#quantidade');
+        this._inputValor = $('#valor');
+
+        this._listaNegociacoes = new Bind(
+            new ListaNegociacoes(),
+            new NegociacoesView($('#negociacoesView')),
+            'adiciona', 'esvazia')
+
+        this._mensagem = new Bind(
+            new Mensagem(), new MensagemView($('#mensagemView')),
+            'texto');
+    }
+```
+
+* Não vamos mais manipular a View manualmente, ela será atualizada automaticamente quando o modelo for alterado. Mas precisaremos de um modelo para trabalhar. Quando usamos o new Bind(), associaremos o modelo com a View e o ListaNegociacoes será o Proxy. Então, agora, o código ficou mais enxuto.
+
+
+<h1>Aula 04 - Importando negociações</h1>
+
+
